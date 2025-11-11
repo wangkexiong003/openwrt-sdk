@@ -1,0 +1,49 @@
+## ARCH
+#
+CONFIG_TARGET_x86=y
+CONFIG_TARGET_x86_64=y
+CONFIG_TARGET_x86_64_DEVICE_generic=y
+
+## OUTPUT
+#
+CONFIG_ISO_IMAGES=n
+CONFIG_VDI_IMAGES=n
+CONFIG_VMDK_IMAGES=n
+CONFIG_VHDX_IMAGES=n
+
+## BASE PACKAGEs
+#
+CONFIG_PACKAGE_dnsmasq=n
+CONFIG_PACKAGE_luci=y
+CONFIG_TARGET_ROOTFS_PARTSIZE=256
+
+## LUCI Chinese
+#
+CONFIG_LUCI_LANG_zh_Hans=y
+CONFIG_PACKAGE_luci-app-package-manager=y
+CONFIG_PACKAGE_luci-app-firewall=y
+CONFIG_PACKAGE_luci-i18n-passwall-zh-cn=y
+
+## passwall
+CONFIG_PACKAGE_luci-app-passwall=y
+CONFIG_PACKAGE_luci-app-passwall_Iptables_Transparent_Proxy=y
+CONFIG_PACKAGE_luci-app-passwall_Nftables_Transparent_Proxy=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Geoview=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Haproxy=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Hysteria=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_NaiveProxy=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Libev_Client=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Libev_Server=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Rust_Client=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadowsocks_Rust_Server=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_ShadowsocksR_Libev_Client=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_ShadowsocksR_Libev_Server=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Shadow_TLS=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Simple_Obfs=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_SingBox=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Trojan_Plus=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_tuic_client=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_V2ray_Geodata=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_V2ray_Plugin=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Xray=y
+CONFIG_PACKAGE_luci-app-passwall_INCLUDE_Xray_Plugin=y

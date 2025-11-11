@@ -1,0 +1,40 @@
+From adcfa66a066df5e2b32d91742287b13b5a11cff2 Mon Sep 17 00:00:00 2001
+From: Tianling Shen <cnsztl@immortalwrt.org>
+Date: Sat, 20 Sep 2025 22:22:16 +0800
+Subject: [PATCH] rust: override default patch behavior
+
+The scripts/patch-kernel.sh script will simply remove all files
+suffixed with `.orig`, and it breaks rust's integrity check as these
+files actually come with upstream tarball.
+
+Create a customized Host/Patch recipe to work around the issue.
+
+Signed-off-by: Tianling Shen <cnsztl@immortalwrt.org>
+---
+ lang/rust/Makefile | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/lang/rust/Makefile b/lang/rust/Makefile
+index 717b15d46e1643..b2d3915aacec0c 100644
+--- a/lang/rust/Makefile
++++ b/lang/rust/Makefile
+@@ -84,6 +84,19 @@ define Host/Uninstall
+ 		$(BASH) $(RUST_UNINSTALL) || echo No Uninstall
+ endef
+ 
++define Host/Patch
++	$(if $(HOST_QUILT),rm -rf $(HOST_BUILD_DIR)/patches; mkdir -p $(HOST_BUILD_DIR)/patches)
++	$(if $(HOST_QUILT),$(call PatchDir/Quilt,$(HOST_BUILD_DIR),$(HOST_PATCH_DIR),))
++	$(if $(HOST_QUILT),touch $(HOST_BUILD_DIR)/.quilt_used)
++	$(if $(HOST_QUILT),,$(if $(wildcard $(HOST_PATCH_DIR)/*.patch), \
++		$(foreach p,$(sort $(wildcard $(HOST_PATCH_DIR)/*.patch)), \
++			echo "Applying patch $(notdir $p)" ; \
++			$(PATCH) -f -p1 -d $(HOST_BUILD_DIR) < $p || \
++			{ echo "Patch failed! Please fix: $(notdir $p)!" ; exit 1 ; } ; \
++		) \
++	))
++endef
++
+ define Host/Compile
+ 	$(RUST_SCCACHE_VARS) \
+ 	CARGO_HOME=$(CARGO_HOME) \
