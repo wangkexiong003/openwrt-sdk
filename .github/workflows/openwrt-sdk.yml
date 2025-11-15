@@ -7,8 +7,8 @@ on:
         description: 'Openwrt Version(v24.10.4)'
         required: false
         default: 'v24.10.4'
-      rebuild:
-        description: 'Rebuild SDK'
+      skipCache:
+        description: 'Rebuild everything'
         required: false
         default: 'false'
 
@@ -57,39 +57,44 @@ jobs:
           echo "WORKING_DIR=/mnt/workdir" >> ${GITHUB_ENV}
           echo "TIMESTAMP=$(date +%s)"    >> ${GITHUB_ENV}
 
-      - name: Download sdk artifacts
-        if: ${{ inputs.rebuild == 'false' }}
-        uses: robinraju/release-downloader@v1
+      - name: Restore cached build
+        id: cache-restore
+        if: ${{ inputs.skipCache == 'false' }}
+        uses: actions/cache/restore@v4
         with:
-          tag: sdk
-          fileName: '${{ inputs.tag }}-${{ matrix.target }}.tar.zstd'
-        continue-on-error: true
+          path: ${{ env.WORKING_DIR }}/openwrt
+          key: openwrtsdk-${{ inputs.tag }}-${{ matrix.target }}-${{ env.TIMESTAMP }}
+          restore-keys: |
+            openwrtsdk-${{ inputs.tag }}-${{ matrix.target }}
 
-      - name: Check sdk artifacts
+      - name: Check cache existence
+        id: cache-check
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          if [ -f "${GITHUB_WORKSPACE}/${{ inputs.tag }}-${{ matrix.target }}.tar.zstd" ]; then
-            echo "BUILD_SDK=false" >> ${GITHUB_ENV}
+          if [ -d openwrt ]; then
+            echo "CACHE_EXISTS=true" >> ${GITHUB_ENV}
           else
-            echo "BUILD_SDK=true" >> ${GITHUB_ENV}
+            echo "CACHE_EXISTS=false" >> ${GITHUB_ENV}
             git clone --branch ${{ inputs.tag }} --depth 1 https://github.com/openwrt/openwrt.git
           fi
 
       - name: Restore openwrt feeds
-        if: env.BUILD_SDK == 'true'
         working-directory: ${{ env.WORKING_DIR }}/openwrt
         run: |
           ./scripts/feeds update -a
           ./scripts/feeds install -a
-          chmod +x ${GITHUB_WORKSPACE}/scripts/update_languages.sh
-          ${GITHUB_WORKSPACE}/scripts/update_languages.sh
 
           cp ${GITHUB_WORKSPACE}/config/${{ matrix.target }} .config
-          make defconfig
-          make download -j8
 
-      - name: Build openwrt with language support
-        if: env.BUILD_SDK == 'true'
+          # custom building languages
+          if [[ "${CACHE_EXISTS}" == "false" ]]; then
+            chmod +x ${GITHUB_WORKSPACE}/update_languages.sh
+            ${GITHUB_WORKSPACE}/update_languages.sh
+          fi
+
+          make defconfig
+
+      - name: Build openwrt
         working-directory: ${{ env.WORKING_DIR }}/openwrt
         run: |
           make -j$(nproc) toolchain/install || make -j1 toolchain/install|| make -j1 toolchain/install V=s
@@ -97,22 +102,20 @@ jobs:
           make -j$(nproc) package/rust/compile || make -j1 package/rust/compile|| make -j1 package/rust/compile V=s
 
       - name: Build env check
-        if: ${{ always() && env.BUILD_SDK == 'true' }}
+        if: ${{ always() }}
         working-directory: ${{ env.WORKING_DIR }}/openwrt
         run: |
           df -hT
 
-      - name: Pack artifacts
-        if: env.BUILD_SDK == 'true'
-        working-directory: ${{ env.WORKING_DIR }}
-        run: |
-          tar --use-compress-program="zstd -19" -cvf ${{ inputs.tag }}-${{ matrix.target }}.tar.zstd openwrt
-
-      - name: Upload sdk artifacts
-        if: env.BUILD_SDK == 'true'
-        uses: ncipollo/release-action@v1
+      - name: Update build cache
+        uses: actions/cache/save@v4
         with:
-          tag: sdk
-          body: openwrt sdk with golang and rust support
-          allowUpdates: true
-          artifacts: "${{ env.WORKING_DIR }}/${{ inputs.tag }}-${{ matrix.target }}.tar.zstd"
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+          path: ${{ env.WORKING_DIR }}/openwrt
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openwrtsdk-${{ inputs.tag }}-${{ matrix.target }}
+          path: |
+            ${{ env.WORKING_DIR }}/openwrt/bin
