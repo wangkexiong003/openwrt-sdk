@@ -78,7 +78,7 @@ jobs:
             git clone --branch ${{ inputs.tag }} --depth 1 https://github.com/openwrt/openwrt.git
           fi
 
-      - name: Restore openwrt feeds
+      - name: Build openwrt SDK
         working-directory: ${{ env.WORKING_DIR }}/openwrt
         run: |
           ./scripts/feeds update -a
@@ -93,13 +93,9 @@ jobs:
           fi
 
           make defconfig
-
-      - name: Build openwrt
-        working-directory: ${{ env.WORKING_DIR }}/openwrt
-        run: |
           make -j$(nproc) toolchain/install || make -j1 toolchain/install|| make -j1 toolchain/install V=s
-          make -j$(nproc) package/golang/compile || make -j1 package/golang/compile|| make -j1 package/golang/compile V=s
-          make -j$(nproc) package/rust/compile || make -j1 package/rust/compile|| make -j1 package/rust/compile V=s
+          make -j$(nproc) package/golang/host || make -j1 package/golang/host || make -j1 package/golang/host V=s
+          make -j$(nproc) package/rust/host || make -j1 package/rust/host || make -j1 package/rust/host V=s
 
       - name: Build env check
         if: ${{ always() }}
