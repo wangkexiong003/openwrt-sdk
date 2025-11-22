@@ -11,21 +11,25 @@ on:
         description: 'Rebuild everything'
         required: false
         default: 'false'
+      targets:
+        description: 'JSON array of build targets, e.g. ["x86_64"]'
+        required: false
+        default: '["x86_64"]'
 
 permissions:
   contents: write
 
-env:
-  ALL_TARGETS: '["x86_64"]'
 
 jobs:
   buildSDK:
     name: build(${{ matrix.target }})
     runs-on: ubuntu-latest
+    env:
+      ALL_TARGETS: ${{ inputs.targets }}
     strategy:
       fail-fast: true
       matrix:
-        target: ${{ fromJson(env.ALL_TARGETS) }}
+        target: ${{ fromJson(inputs.targets) }}
     outputs:
       packages: ${{ steps.targets.outputs.matrix }}
 
