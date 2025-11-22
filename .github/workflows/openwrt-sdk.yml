@@ -15,12 +15,13 @@ on:
 permissions:
   contents: write
 
+env:
+  ALL_TARGETS: '["x86_64"]'
+
 jobs:
   buildSDK:
     name: build(${{ matrix.target }})
     runs-on: ubuntu-latest
-    env:
-      ALL_TARGETS: '["x86_64"]'
     strategy:
       fail-fast: true
       matrix:
