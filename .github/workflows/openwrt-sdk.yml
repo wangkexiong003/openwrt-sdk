@@ -133,7 +133,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
-      matrix: ${{ fromJson(needs.buildSDK.outputs.packages) }}
+      matrix:
+        include: ${{ fromJson(needs.buildSDK.outputs.packages) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
