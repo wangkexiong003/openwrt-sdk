@@ -99,14 +99,16 @@ jobs:
 
           # custom building languages
           if [[ "${CACHE_EXISTS}" == "false" ]]; then
-            chmod +x ${GITHUB_WORKSPACE}/update_languages.sh
-            ${GITHUB_WORKSPACE}/update_languages.sh
+            chmod +x ${GITHUB_WORKSPACE}/scripts/update_languages.sh
+            ${GITHUB_WORKSPACE}/scripts/update_languages.sh
           fi
 
           make defconfig
           make -j$(nproc) toolchain/install || make -j1 toolchain/install|| make -j1 toolchain/install V=s
           make -j$(nproc) package/golang/host/compile || make -j1 package/golang/host/compile || make -j1 package/golang/host/compile V=s
           make -j$(nproc) package/rust/host/compile || make -j1 package/rust/host/compile || make -j1 package/rust/host/compile V=s
+
+          rm -rf bin dl
 
       - name: Build env check
         if: ${{ always() }}
