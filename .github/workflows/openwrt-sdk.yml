@@ -19,7 +19,6 @@ on:
 permissions:
   contents: write
 
-
 jobs:
   buildSDK:
     name: build(${{ matrix.target }})
@@ -197,7 +196,7 @@ jobs:
             ${GITHUB_WORKSPACE}/scripts/diy_settings.sh
             make -j$(nproc) || make -j1 || make -j1 V=s
           else
-            chmod +x ${{ github.workspace }}/openwrt/scripts/patch.sh
+            chmod +x ${GITHUB_WORKSPACE}/scripts/patch.sh
             ${GITHUB_WORKSPACE}/scripts/patch.sh "${PWD}"
             make -j$(nproc) package/${TARGET_PACKAGE}/compile || make package/${TARGET_PACKAGE}/compile V=s
           fi
