@@ -24,9 +24,12 @@ for (const feed of feedNames) {
 
   const lines = fs.readFileSync(indexFile, 'utf8').split('\n');
   for (const line of lines) {
-    if (line.startsWith('Package:')) {
-      const pkg = line.replace('Package:', '').trim();
-      allPackages.push(pkg);
+    if (line.startsWith('Source-Makefile:')) {
+      const match = line.match(/([^/]+)\/Makefile(?:\s|$)/);
+      if (match) {
+        const pkg = match[1];
+        allPackages.push(pkg);
+      }
     }
   }
 }

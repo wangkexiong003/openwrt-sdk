@@ -131,7 +131,7 @@ jobs:
     needs: buildSDK
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include: ${{ fromJson(needs.buildSDK.outputs.packages) }}
     steps:
