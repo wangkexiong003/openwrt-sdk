@@ -108,8 +108,6 @@ jobs:
           make -j$(nproc) package/golang/host/compile || make -j1 package/golang/host/compile || make -j1 package/golang/host/compile V=s
           make -j$(nproc) package/rust/host/compile || make -j1 package/rust/host/compile || make -j1 package/rust/host/compile V=s
 
-          rm -rf dl
-
       - name: Build env check
         if: ${{ always() }}
         working-directory: ${{ env.WORKING_DIR }}/openwrt
