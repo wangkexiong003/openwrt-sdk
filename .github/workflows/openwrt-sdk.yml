@@ -197,7 +197,7 @@ jobs:
             make -j$(nproc) || make -j1 || make -j1 V=s
           else
             make -j$(nproc) target/linux/compile || make target/linux/compile V=s
-            make -j$(nproc) package/boost/compile || make package/boost/compile V=s
+            make -j$(nproc) package/boost/{compile,install} || make package/boost/{compile,install} V=s
 
             chmod +x ${GITHUB_WORKSPACE}/scripts/patch.sh
             ${GITHUB_WORKSPACE}/scripts/patch.sh "${PWD}"
