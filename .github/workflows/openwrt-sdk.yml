@@ -11,26 +11,35 @@ on:
         description: 'Rebuild everything'
         required: false
         default: 'false'
-      targets:
-        description: 'JSON array of build targets, e.g. ["x86_64"]'
-        required: false
-        default: '["x86_64"]'
 
 permissions:
   contents: write
 
+env:
+  ALL_TARGETS: '["x86_64"]'
+
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.out.outputs.targets}}
+      packages: ${{ steps.out.outputs.packages}}
+    steps:
+      - name: Generate matrix
+        id: out
+        run: |
+          ALL_PACKAGES='["image", "package"]'
+          echo "targets=${ALL_TARGETS}"   >> "${GITHUB_OUTPUT}"
+          echo "packages=${ALL_PACKAGES}" >> "${GITHUB_OUTPUT}"
+
   buildSDK:
     name: build(${{ matrix.target }})
+    needs: prepare
     runs-on: ubuntu-latest
-    env:
-      ALL_TARGETS: ${{ inputs.targets }}
     strategy:
       fail-fast: true
       matrix:
-        target: ${{ fromJson(inputs.targets) }}
-    outputs:
-      packages: ${{ steps.targets.outputs.matrix }}
+        target: ${{ fromJson(needs.prepare.outputs.targets) }}
 
     steps:
       - name: Checkout
@@ -120,20 +129,17 @@ jobs:
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
           path: ${{ env.WORKING_DIR }}/openwrt
 
-      - name: Prepare build target
-        id: targets
-        if: matrix.target == 'x86_64'
-        working-directory: ${{ env.WORKING_DIR }}/openwrt
-        run: |
-          node ${GITHUB_WORKSPACE}/scripts/generate_packages_matrix.js ${GITHUB_WORKSPACE}/config/feeds4package.conf
-
   buildTarget:
-    needs: buildSDK
+    name: build ${{ matrix.package }} on ${{ matrix.target }}
+    needs:
+      - prepare
+      - buildSDK
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJson(needs.buildSDK.outputs.packages) }}
+        target: ${{ fromJson(needs.prepare.outputs.targets) }}
+        package: ${{ fromJson(needs.prepare.outputs.packages) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -178,7 +184,7 @@ jobs:
       - name: Build
         working-directory: ${{ env.WORKING_DIR }}/openwrt
         run: |
-          if [[ "${TARGET_PACKAGE}" == "" ]]; then
+          if [[ "${TARGET_PACKAGE}" == "image" ]]; then
             cp ${GITHUB_WORKSPACE}/config/feeds4image.conf feeds.conf
           else
             cp ${GITHUB_WORKSPACE}/config/feeds4package.conf feeds.conf
@@ -189,19 +195,22 @@ jobs:
           ./scripts/feeds install -a
 
           cp ${GITHUB_WORKSPACE}/config/${{ matrix.target }} .config
-
           make defconfig
-          if [[ "${TARGET_PACKAGE}" == "" ]]; then
+
+          if [[ "${TARGET_PACKAGE}" == "image" ]]; then
             chmod +x ${GITHUB_WORKSPACE}/scripts/diy_settings.sh
             ${GITHUB_WORKSPACE}/scripts/diy_settings.sh
             make -j$(nproc) || make -j1 || make -j1 V=s
           else
-            make -j$(nproc) target/linux/compile || make target/linux/compile V=s
-            make -j$(nproc) package/boost/{compile,install} || make package/boost/{compile,install} V=s
+            make -j$(nproc) target/sdk/install || make target/sdk/install V=s
 
             chmod +x ${GITHUB_WORKSPACE}/scripts/patch.sh
             ${GITHUB_WORKSPACE}/scripts/patch.sh "${PWD}"
-            make -j$(nproc) package/${TARGET_PACKAGE}/compile || make package/${TARGET_PACKAGE}/compile V=s
+
+            PKGS=$(node ${GITHUB_WORKSPACE}/scripts/resolve-packages.js ${GITHUB_WORKSPACE}/config/feeds4package.conf)
+            echo "${PKGS}" | jq -r .[] | while read -r pkg; do
+              make -j$(nproc) package/${pkg}/compile || make package/${pkg}/compile V=s
+            done
           fi
         env:
           TARGET_PACKAGE: ${{ matrix.package }}
