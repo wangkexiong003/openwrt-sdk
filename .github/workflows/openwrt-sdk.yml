@@ -33,7 +33,7 @@ jobs:
           echo "packages=${ALL_PACKAGES}" >> "${GITHUB_OUTPUT}"
 
   buildSDK:
-    name: build(${{ matrix.target }})
+    name: build-SDK(${{ matrix.target }})
     needs: prepare
     runs-on: ubuntu-latest
     strategy:
@@ -98,13 +98,8 @@ jobs:
       - name: Build openwrt SDK
         working-directory: ${{ env.WORKING_DIR }}/openwrt
         run: |
-          cp ${GITHUB_WORKSPACE}/config/feeds4package.conf feeds.conf
-          cat feeds.conf.default >> feeds.conf
-
           ./scripts/feeds update -a
           ./scripts/feeds install -a
-
-          cp ${GITHUB_WORKSPACE}/config/${{ matrix.target }} .config
 
           # custom building languages
           if [[ "${CACHE_EXISTS}" == "false" ]]; then
@@ -112,10 +107,19 @@ jobs:
             ${GITHUB_WORKSPACE}/scripts/update_languages.sh
           fi
 
+          cp ${GITHUB_WORKSPACE}/config/${{ matrix.target }} .config
           make defconfig
-          make -j$(nproc) toolchain/install || make -j1 toolchain/install|| make -j1 toolchain/install V=s
-          make -j$(nproc) package/golang/host/compile || make -j1 package/golang/host/compile || make -j1 package/golang/host/compile V=s
-          make -j$(nproc) package/rust/host/compile || make -j1 package/rust/host/compile || make -j1 package/rust/host/compile V=s
+
+          BUILD_TARGETS=(
+            "tools/install"
+            "toolchain/install"
+            "target/linux/compile"
+            "package/golang/host/compile"
+            "package/rust/host/compile"
+          )
+          for target in "${BUILD_TARGETS[@]}"; do
+            make -j$(nproc) "${target}" || make -j1 "${target}" || make -j1 "${target}" V=sc
+          done
 
       - name: Build env check
         if: ${{ always() }}
@@ -130,7 +134,7 @@ jobs:
           path: ${{ env.WORKING_DIR }}/openwrt
 
   buildTarget:
-    name: build ${{ matrix.package }} on ${{ matrix.target }}
+    name: build-${{ matrix.package }}(${{ matrix.target }})
     needs:
       - prepare
       - buildSDK
@@ -202,8 +206,6 @@ jobs:
             ${GITHUB_WORKSPACE}/scripts/diy_settings.sh
             make -j$(nproc) || make -j1 || make -j1 V=s
           else
-            make -j$(nproc) target/sdk/install || make target/sdk/install V=s
-
             chmod +x ${GITHUB_WORKSPACE}/scripts/patch.sh
             ${GITHUB_WORKSPACE}/scripts/patch.sh "${PWD}"
 
