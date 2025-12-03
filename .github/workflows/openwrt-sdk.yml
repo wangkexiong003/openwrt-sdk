@@ -130,7 +130,7 @@ jobs:
       - name: Update build cache
         uses: actions/cache/save@v4
         with:
-          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+          key: openwrtsdk-${{ inputs.tag }}-${{ matrix.target }}-${{ env.TIMESTAMP }}
           path: ${{ env.WORKING_DIR }}/openwrt
 
   buildTarget:
@@ -209,7 +209,7 @@ jobs:
             chmod +x ${GITHUB_WORKSPACE}/scripts/patch.sh
             ${GITHUB_WORKSPACE}/scripts/patch.sh "${PWD}"
 
-            PKGS=$(node ${GITHUB_WORKSPACE}/scripts/resolve-packages.js ${GITHUB_WORKSPACE}/config/feeds4package.conf)
+            PKGS=$(node ${GITHUB_WORKSPACE}/scripts/resolve_packages.js ${GITHUB_WORKSPACE}/config/feeds4package.conf)
             echo "${PKGS}" | jq -r .[] | while read -r pkg; do
               make -j$(nproc) package/${pkg}/compile || make package/${pkg}/compile V=s
             done
