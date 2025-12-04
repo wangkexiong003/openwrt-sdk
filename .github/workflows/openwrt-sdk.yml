@@ -207,13 +207,9 @@ jobs:
             make -j$(nproc) || make -j1 || make -j1 V=s
           else
             chmod +x ${GITHUB_WORKSPACE}/scripts/patch.sh
+            chmod +x ${GITHUB_WORKSPACE}/scripts/update_config.sh
             ${GITHUB_WORKSPACE}/scripts/patch.sh "${PWD}"
-
-            cat <<'EOF' >> .config
-            CONFIG_PACKAGE_boost=y
-            CONFIG_PACKAGE_boost-filesystem=y
-            CONFIG_PACKAGE_boost-program_options=y
-            EOF
+            ${GITHUB_WORKSPACE}/scripts/update_config.sh
 
             PKGS=$(node ${GITHUB_WORKSPACE}/scripts/resolve_packages.js ${GITHUB_WORKSPACE}/config/feeds4package.conf)
             echo "${PKGS}" | jq -r .[] | while read -r pkg; do
