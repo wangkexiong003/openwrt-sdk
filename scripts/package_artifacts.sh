@@ -3,6 +3,8 @@
 mkdir -p artifacts
 mkdir -p ipks_feed
 
+find . -type f -name "*.ipk"
+
 if [ -d openwrt ]; then
   ## Helloworld requires dnsmasq-full with ipset and nftset support
   find openwrt/bin/packages -type f -name "dnsmasq-full*.ipk" -exec cp -v {} artifacts \;
