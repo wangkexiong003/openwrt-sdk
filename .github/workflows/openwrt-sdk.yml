@@ -158,6 +158,14 @@ jobs:
           echo "WORKING_DIR=/mnt/workdir" >> ${GITHUB_ENV}
           echo "TIMESTAMP=$(date +%s)"    >> ${GITHUB_ENV}
 
+      - name: Restore cached build
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.WORKING_DIR }}/openwrt
+          key: openwrtsdk-always-miss
+          restore-keys: |
+            openwrtsdk-${{ inputs.tag }}-${{ matrix.target }}
+
       - name: 检查服务器配置
         run: |
           echo "警告⚠"
@@ -177,39 +185,25 @@ jobs:
           echo "硬盘详情："
           df -Th
 
-      - name: Restore cached build
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ env.WORKING_DIR }}/openwrt
-          key: openwrtsdk-always-miss
-          restore-keys: |
-            openwrtsdk-${{ inputs.tag }}-${{ matrix.target }}
-
       - name: Build
         working-directory: ${{ env.WORKING_DIR }}/openwrt
         run: |
-          if [[ "${TARGET_PACKAGE}" == "image" ]]; then
-            cp ${GITHUB_WORKSPACE}/config/feeds4image.conf feeds.conf
-          else
-            cp ${GITHUB_WORKSPACE}/config/feeds4package.conf feeds.conf
-          fi
+          cp ${GITHUB_WORKSPACE}/config/${BUILD_PACKAGE}/feeds.conf feeds.conf
           cat feeds.conf.default >> feeds.conf
 
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-          cp ${GITHUB_WORKSPACE}/config/${{ matrix.target }} .config
+          cp ${GITHUB_WORKSPACE}/config/${BUILD_PACKAGE}/${BUILD_TARGET} .config
           make defconfig
 
-          if [[ "${TARGET_PACKAGE}" == "image" ]]; then
+          if [[ "${BUILD_PACKAGE}" == "image" ]]; then
             chmod +x ${GITHUB_WORKSPACE}/scripts/diy_settings.sh
             ${GITHUB_WORKSPACE}/scripts/diy_settings.sh
             make -j$(nproc) || make -j1 || make -j1 V=s
           else
             chmod +x ${GITHUB_WORKSPACE}/scripts/patch.sh
-            chmod +x ${GITHUB_WORKSPACE}/scripts/update_config.sh
             ${GITHUB_WORKSPACE}/scripts/patch.sh "${PWD}"
-            ${GITHUB_WORKSPACE}/scripts/update_config.sh
 
             PKGS=$(node ${GITHUB_WORKSPACE}/scripts/resolve_packages.js ${GITHUB_WORKSPACE}/config/feeds4package.conf)
             echo "${PKGS}" | jq -r .[] | while read -r pkg; do
@@ -217,10 +211,19 @@ jobs:
             done
           fi
         env:
-          TARGET_PACKAGE: ${{ matrix.package }}
+          BUILD_TARGET: ${{ matrix.target }}
+          BUILD_PACKAGE: ${{ matrix.package }}
 
       - name: Build env check
         if: ${{ always() }}
         working-directory: ${{ env.WORKING_DIR }}/openwrt
         run: |
           df -hT
+
+      - name: Prepare Artifacts
+        working-directory: ${{ env.WORKING_DIR }}
+        run: |
+          chmod +x ${GITHUB_WORKSPACE}/scripts/${{ matrix.package }}_artifacts.sh
+          ${GITHUB_WORKSPACE}/scripts/${{ matrix.package }}_artifacts.sh
+
+          ls -al artifacts
