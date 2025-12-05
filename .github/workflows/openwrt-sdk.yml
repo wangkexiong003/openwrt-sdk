@@ -224,3 +224,12 @@ jobs:
           ${GITHUB_WORKSPACE}/scripts/${{ matrix.package }}_artifacts.sh
 
           ls -al artifacts
+
+      - name: Upload release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ matrix.target }}-${{ matrix.package }}
+          allowUpdates: true
+          removeArtifacts: true
+          artifacts: ${{ env.WORKING_DIR}}/artifacts/*
+          token: ${{ github.token }}

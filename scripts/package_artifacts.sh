@@ -8,6 +8,7 @@ find . -type f -name "*.ipk"
 if [ -d openwrt ]; then
   ## Helloworld requires dnsmasq-full with ipset and nftset support
   find openwrt/bin/packages -type f -name "dnsmasq-full*.ipk" -exec cp -v {} artifacts \;
+  find openwrt/bin/packages/x86_64/extra -name "*.ipk" -exec cp -v {} artifacts \;
 
   FEED_SOURCE=$(awk '{print $2}' ${GITHUB_WORKSPACE}/config/package/feeds.conf | paste -sd ' ' | xargs)
   FEED_REGEXP=$(echo "${FEEDS_SOURCE}" | sed 's/ /\|/g')
