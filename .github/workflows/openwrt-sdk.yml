@@ -207,7 +207,7 @@ jobs:
 
             PKGS=$(node ${GITHUB_WORKSPACE}/scripts/resolve_packages.js ${GITHUB_WORKSPACE}/config/package/feeds.conf)
             echo "${PKGS}" | jq -r .[] | while read -r pkg; do
-              make -j$(nproc) package/${pkg}/install || make package/${pkg}/install V=s
+              make -j$(nproc) package/${pkg}/compile || make package/${pkg}/compile V=s
             done
           fi
         env:
