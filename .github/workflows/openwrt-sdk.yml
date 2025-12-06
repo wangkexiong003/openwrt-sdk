@@ -111,6 +111,7 @@ jobs:
           make defconfig
 
           BUILD_TARGETS=(
+            "toolchain/install"
             "package/golang/host/compile"
             "package/rust/host/compile"
           )
