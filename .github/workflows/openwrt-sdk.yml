@@ -28,6 +28,7 @@ jobs:
         id: out
         run: |
           node - << 'EOF'
+          const fs = require('fs');
           combos = JSON.parse(process.env.ALL_TARGETS).map(t => ({
             target: t,
             job: "SDK"
