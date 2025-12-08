@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 
-// The original feeds file with only 3rd Party
 const feedPath = process.argv[2];
 const feedsConf = feedPath && fs.existsSync(feedPath)
   ? fs.readFileSync(feedPath, 'utf8')
@@ -34,8 +33,6 @@ for (const feed of feedNames) {
   }
 }
 
-console.log(JSON.stringify(allPackages));
-/*
 const combos = [];
 const allTargets = JSON.parse(process.env.ALL_TARGETS);
 for (const t of allTargets) {
@@ -51,4 +48,3 @@ fs.appendFileSync(
   process.env.GITHUB_OUTPUT,
   `matrix=${JSON.stringify(combos)}\n`
 );
-*/

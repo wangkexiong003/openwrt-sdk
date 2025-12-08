@@ -22,28 +22,33 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     outputs:
-      targets: ${{ steps.out.outputs.targets}}
-      packages: ${{ steps.out.outputs.packages}}
+      matrix: ${{ steps.out.outputs.matrix }}
     steps:
       - name: Generate matrix
         id: out
+        shell: node
         run: |
-          ALL_PACKAGES='["image", "package"]'
-          echo "targets=${ALL_TARGETS}"   >> "${GITHUB_OUTPUT}"
-          echo "packages=${ALL_PACKAGES}" >> "${GITHUB_OUTPUT}"
+          combos = process.env.ALL_TARGETS.map(t => ({
+            target: t,
+            job: "SDK"
+          }));
+          combos.push({target:"x86_64", job:"Matrix"});
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify(combos)}\n`);
 
   buildSDK:
-    name: build-SDK(${{ matrix.target }})
+    name: build-${{ matrix.job }}(${{ matrix.target }})
     needs: prepare
     runs-on: ubuntu-latest
     strategy:
       fail-fast: true
       matrix:
-        target: ${{ fromJson(needs.prepare.outputs.targets) }}
+        include: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Prepare dependencies
         run: |
@@ -76,7 +81,7 @@ jobs:
 
       - name: Restore cached build
         id: cache-restore
-        if: ${{ inputs.skipCache == 'false' }}
+        if: inputs.skipCache == 'false' && matrix.job == 'SDK'
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.WORKING_DIR }}/openwrt
@@ -95,38 +100,50 @@ jobs:
             git clone --branch ${{ inputs.tag }} --depth 1 https://github.com/openwrt/openwrt.git
           fi
 
-      - name: Build openwrt SDK
+      - name: Build ${{ matrix.job }}
+        id: build
         working-directory: ${{ env.WORKING_DIR }}/openwrt
         run: |
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
+          if [[ "${BUILD_JOB}" == "Matrix" ]]; then
+            cp ${GITHUB_WORKSPACE}/config/package/feeds.conf feeds.conf
+            cat feeds.conf.default >> feeds.conf
+            ./scripts/feeds update -a
+            ./scripts/feeds install -a
+            node ${GITHUB_WORKSPACE}/scripts/resolve_packages.js ${GITHUB_WORKSPACE}/config/package/feeds.conf
+          else
+            ./scripts/feeds update -a
+            ./scripts/feeds install -a
 
-          # custom building languages
-          if [[ "${CACHE_EXISTS}" == "false" ]]; then
-            chmod +x ${GITHUB_WORKSPACE}/scripts/update_languages.sh
-            ${GITHUB_WORKSPACE}/scripts/update_languages.sh
+            # custom building languages
+            if [[ "${CACHE_EXISTS}" == "false" ]]; then
+              chmod +x ${GITHUB_WORKSPACE}/scripts/update_languages.sh
+              ${GITHUB_WORKSPACE}/scripts/update_languages.sh
+            fi
+
+            cp ${GITHUB_WORKSPACE}/config/package/${{ matrix.target }} .config
+            make defconfig
+
+            BUILD_TARGETS=(
+              "toolchain/install"
+              "target/linux/compile"
+              "package/golang/host/compile"
+              "package/rust/host/compile"
+            )
+            for target in "${BUILD_TARGETS[@]}"; do
+              make -j$(nproc) "${target}" || make -j1 "${target}" || make -j1 "${target}" V=sc
+            done
           fi
-
-          cp ${GITHUB_WORKSPACE}/config/package/${{ matrix.target }} .config
-          make defconfig
-
-          BUILD_TARGETS=(
-            "toolchain/install"
-            "target/linux/compile"
-            "package/golang/host/compile"
-            "package/rust/host/compile"
-          )
-          for target in "${BUILD_TARGETS[@]}"; do
-            make -j$(nproc) "${target}" || make -j1 "${target}" || make -j1 "${target}" V=sc
-          done
+        env:
+          BUILD_JOB: ${{ matrix.job }}
 
       - name: Build env check
-        if: ${{ always() }}
+        if: always()
         working-directory: ${{ env.WORKING_DIR }}/openwrt
         run: |
           df -hT
 
       - name: Update build cache
+        if: matrix.job == 'SDK'
         uses: actions/cache/save@v4
         with:
           key: openwrtsdk-${{ inputs.tag }}-${{ matrix.target }}-${{ env.TIMESTAMP }}
@@ -141,8 +158,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: ${{ fromJson(needs.prepare.outputs.targets) }}
-        package: ${{ fromJson(needs.prepare.outputs.packages) }}
+        include: ${{ fromJson(needs.buildSDK.outputs.matrix) }}
+    env:
+      BUILD_TARGET: ${{ matrix.target }}
+      BUILD_PACKAGE: ${{ matrix.package }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -187,31 +207,29 @@ jobs:
       - name: Build
         working-directory: ${{ env.WORKING_DIR }}/openwrt
         run: |
-          cp ${GITHUB_WORKSPACE}/config/${BUILD_PACKAGE}/feeds.conf feeds.conf
+          if [[ "${BUILD_PACKAGE}" == "" ]]; then
+            cp ${GITHUB_WORKSPACE}/config/image/feeds.conf feeds.conf
+            cp ${GITHUB_WORKSPACE}/config/image/${BUILD_TARGET} .config
+          else
+            cp ${GITHUB_WORKSPACE}/config/package/feeds.conf feeds.conf
+            cp ${GITHUB_WORKSPACE}/config/package/${BUILD_TARGET} .config
+          fi
           cat feeds.conf.default >> feeds.conf
 
           ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-          cp ${GITHUB_WORKSPACE}/config/${BUILD_PACKAGE}/${BUILD_TARGET} .config
           make defconfig
 
-          if [[ "${BUILD_PACKAGE}" == "image" ]]; then
+          if [[ "${BUILD_PACKAGE}" == "" ]]; then
             chmod +x ${GITHUB_WORKSPACE}/scripts/diy_settings.sh
             ${GITHUB_WORKSPACE}/scripts/diy_settings.sh
             make -j$(nproc) || make -j1 || make -j1 V=s
           else
             chmod +x ${GITHUB_WORKSPACE}/scripts/patch.sh
             ${GITHUB_WORKSPACE}/scripts/patch.sh "${PWD}"
-
-            PKGS=$(node ${GITHUB_WORKSPACE}/scripts/resolve_packages.js ${GITHUB_WORKSPACE}/config/package/feeds.conf)
-            echo "${PKGS}" | jq -r .[] | while read -r pkg; do
-              make -j$(nproc) package/${pkg}/compile || make package/${pkg}/compile V=s
-            done
+            make -j$(nproc) package/${BUILD_PACKAGE}/compile || make package/${BUILD_PACKAGE}/compile V=s
           fi
-        env:
-          BUILD_TARGET: ${{ matrix.target }}
-          BUILD_PACKAGE: ${{ matrix.package }}
 
       - name: Build env check
         if: ${{ always() }}
@@ -222,15 +240,22 @@ jobs:
       - name: Prepare Artifacts
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          chmod +x ${GITHUB_WORKSPACE}/scripts/${{ matrix.package }}_artifacts.sh
-          ${GITHUB_WORKSPACE}/scripts/${{ matrix.package }}_artifacts.sh
+          if [[ "${BUILD_PACKAGE}" == "" ]]; then
+            chmod +x ${GITHUB_WORKSPACE}/scripts/image_artifacts.sh
+            ${GITHUB_WORKSPACE}/scripts/image_artifacts.sh
+            echo "ARTIFACTS_RELEASE=image" >> ${GITHUB_ENV}
+          else
+            chmod +x ${GITHUB_WORKSPACE}/scripts/package_artifacts.sh
+            ${GITHUB_WORKSPACE}/scripts/package_artifacts.sh
+            echo "ARTIFACTS_RELEASE=${BUILD_TARGET}" >> ${GITHUB_ENV}
+          fi
 
           ls -al artifacts
 
       - name: Upload release
         uses: ncipollo/release-action@v1
         with:
-          tag: ${{ matrix.target }}-${{ matrix.package }}
+          tag: ${{ env.ARTIFACTS_RELEASE }}
           allowUpdates: true
           removeArtifacts: true
           artifacts: ${{ env.WORKING_DIR}}/artifacts/*
