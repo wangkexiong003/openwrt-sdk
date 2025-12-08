@@ -26,14 +26,15 @@ jobs:
     steps:
       - name: Generate matrix
         id: out
-        shell: node
         run: |
+          node - << 'EOF'
           combos = process.env.ALL_TARGETS.map(t => ({
             target: t,
             job: "SDK"
           }));
           combos.push({target:"x86_64", job:"Matrix"});
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `matrix=${JSON.stringify(combos)}\n`);
+          EOF
 
   buildSDK:
     name: build-${{ matrix.job }}(${{ matrix.target }})
