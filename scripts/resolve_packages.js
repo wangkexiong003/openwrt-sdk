@@ -33,18 +33,8 @@ for (const feed of feedNames) {
   }
 }
 
-const combos = [];
 const allTargets = JSON.parse(process.env.ALL_TARGETS);
-for (const t of allTargets) {
-  for (const p of allPackages) {
-    combos.push({ target: t, package: p });
-  }
-  combos.push({ target: t, package: '' })
-}
 
 // Write to GITHUB_OUTPUT
-// Much like `echo "matrix=_JSON_STRING_" >> $GITHUB_OUTPUT`
-fs.appendFileSync(
-  process.env.GITHUB_OUTPUT,
-  `matrix=${JSON.stringify(combos)}\n`
-);
+fs.appendFileSync(process.env.GITHUB_OUTPUT, `target=${JSON.stringify(allTargets)}\n`);
+fs.appendFileSync(process.env.GITHUB_OUTPUT, `package=${JSON.stringify(allPackages)}\n`);

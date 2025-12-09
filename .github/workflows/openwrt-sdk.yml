@@ -24,7 +24,7 @@ jobs:
     outputs:
       matrix: ${{ steps.out.outputs.matrix }}
     steps:
-      - name: Generate matrix
+      - name: Generate matrix4${{ inputs.tag }}
         id: out
         run: |
           node - << 'EOF'
@@ -46,7 +46,8 @@ jobs:
       matrix:
         include: ${{ fromJson(needs.prepare.outputs.matrix) }}
     outputs:
-      matrix: ${{ steps.build.outputs.matrix }}
+      target:  ${{ steps.build.outputs.target }}
+      package: ${{ steps.build.outputs.package }}
 
     steps:
       - name: Checkout
@@ -96,7 +97,7 @@ jobs:
         working-directory: ${{ env.WORKING_DIR }}
         run: |
           if [ -d openwrt ]; then
-            echo "CACHE_EXISTS=true" >> ${GITHUB_ENV}
+            echo "CACHE_EXISTS=true"  >> ${GITHUB_ENV}
           else
             echo "CACHE_EXISTS=false" >> ${GITHUB_ENV}
             git clone --branch ${{ inputs.tag }} --depth 1 https://github.com/openwrt/openwrt.git
@@ -122,7 +123,7 @@ jobs:
               ${GITHUB_WORKSPACE}/scripts/update_languages.sh
             fi
 
-            cp ${GITHUB_WORKSPACE}/config/package/${{ matrix.target }} .config
+            cp ${GITHUB_WORKSPACE}/config/package/${BUILD_TARGET} .config
             make defconfig
 
             BUILD_TARGETS=(
@@ -136,11 +137,11 @@ jobs:
             done
           fi
         env:
+          BUILD_TARGET: ${{ matrix.target }}
           BUILD_JOB: ${{ matrix.job }}
 
       - name: Build env check
         if: always()
-        working-directory: ${{ env.WORKING_DIR }}/openwrt
         run: |
           df -hT
 
@@ -151,23 +152,42 @@ jobs:
           key: openwrtsdk-${{ inputs.tag }}-${{ matrix.target }}-${{ env.TIMESTAMP }}
           path: ${{ env.WORKING_DIR }}/openwrt
 
+  cleanRelease:
+    name: clean-${{ matrix.target }}
+    needs: buildSDK
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        target: ${{ fromJson(needs.buildSDK.outputs.target) }}
+    steps:
+      - name: Clean Packages Repository
+        run: |
+          if gh release view ${{ inputs.tag }}-${{ matrix.target }} >/dev/null 2>&1; then
+            gh release delete ${{ inputs.tag }}-${{ matrix.target }} --cleanup-tag --yes
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   buildTarget:
-    name: build-${{ matrix.package }}(${{ matrix.target }})
+    name: build-${{ matrix.package != '' && matrix.package || 'image' }}(${{ matrix.target }})
     needs:
-      - prepare
+      - cleanRelease
       - buildSDK
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJson(needs.buildSDK.outputs.matrix) }}
+        target:  ${{ fromJson(needs.buildSDK.outputs.target) }}
+        package: ${{ fromJson(needs.buildSDK.outputs.package) }}
     env:
+      BUILD_VERSION: ${{ inputs.tag }}
       BUILD_TARGET: ${{ matrix.target }}
       BUILD_PACKAGE: ${{ matrix.package }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Prepare dependencies
         run: |
@@ -234,24 +254,24 @@ jobs:
           fi
 
       - name: Build env check
-        if: ${{ always() }}
-        working-directory: ${{ env.WORKING_DIR }}/openwrt
+        if: always()
         run: |
           df -hT
 
       - name: Prepare Artifacts
         working-directory: ${{ env.WORKING_DIR }}
         run: |
+          mkdir -p artifacts
+
           if [[ "${BUILD_PACKAGE}" == "" ]]; then
             chmod +x ${GITHUB_WORKSPACE}/scripts/image_artifacts.sh
-            ${GITHUB_WORKSPACE}/scripts/image_artifacts.sh
+            ${GITHUB_WORKSPACE}/scripts/image_artifacts.sh ${BUILD_VERSION}
             echo "ARTIFACTS_RELEASE=image" >> ${GITHUB_ENV}
           else
             chmod +x ${GITHUB_WORKSPACE}/scripts/package_artifacts.sh
             ${GITHUB_WORKSPACE}/scripts/package_artifacts.sh
-            echo "ARTIFACTS_RELEASE=${BUILD_TARGET}" >> ${GITHUB_ENV}
+            echo "ARTIFACTS_RELEASE=${BUILD_VERSION}-${BUILD_TARGET}" >> ${GITHUB_ENV}
           fi
-
           ls -al artifacts
 
       - name: Upload release
