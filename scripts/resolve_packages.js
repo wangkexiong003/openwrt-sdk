@@ -33,6 +33,7 @@ for (const feed of feedNames) {
   }
 }
 
+allPackages.push("");
 const allTargets = JSON.parse(process.env.ALL_TARGETS);
 
 // Write to GITHUB_OUTPUT
