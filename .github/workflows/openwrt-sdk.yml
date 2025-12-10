@@ -163,8 +163,8 @@ jobs:
     steps:
       - name: Clean Packages Repository
         run: |
-          if gh release view ${{ inputs.tag }}-${{ matrix.target }} >/dev/null 2>&1; then
-            gh release delete ${{ inputs.tag }}-${{ matrix.target }} --cleanup-tag --yes
+          if gh release view ${{ inputs.tag }}-${{ matrix.target }} -R ${GITHUB_REPOSITORY} >/dev/null 2>&1; then
+            gh release delete ${{ inputs.tag }}-${{ matrix.target }} -R ${GITHUB_REPOSITORY} --cleanup-tag --yes
           fi
         env:
           GH_TOKEN: ${{ github.token }}
@@ -272,7 +272,6 @@ jobs:
             ${GITHUB_WORKSPACE}/scripts/package_artifacts.sh
             echo "ARTIFACTS_RELEASE=${BUILD_VERSION}-${BUILD_TARGET}" >> ${GITHUB_ENV}
           fi
-          ls -al artifacts
 
       - name: Upload release
         uses: ncipollo/release-action@v1
@@ -282,3 +281,59 @@ jobs:
           removeArtifacts: false
           artifacts: ${{ env.WORKING_DIR}}/artifacts/*
           token: ${{ github.token }}
+
+  MakeRepository:
+    name: makeRepo4${{ matrix.target }}
+    needs:
+      - buildSDK
+      - buildTarget
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJson(needs.buildSDK.outputs.target) }}
+    steps:
+      - name: Make openwrt Packages Repository
+        uses: robinraju/release-downloader@v1
+        with:
+          tag: ${{ inputs.tag }}-${{ matrix.target }}
+          fileName: '*'
+          out-file-path: ipks_built
+
+      - name: Build usign tool
+        run: |
+          git clone --depth 1 https://github.com/openwrt/usign.git
+          mkdir -p usign/build
+          cd usign/build
+          cmake ..
+          make
+
+      - name: Make repository index
+        run: |
+          docker run -v $PWD/ipks_built:/working alpine sh -c "
+            echo https://dl-cdn.alpinelinux.org/alpine/edge/testing >> /etc/apk/repositories
+            apk add opkg-utils
+            opkg-make-index /working > /working/Packages
+            gzip -k /working/Packages
+          "
+
+          mkdir -p artifacts
+          if [[ -n "${USIGN_PRIVATE}" && -n "${USIGN_PUBLIC}" ]]; then
+            echo ${USIGN_PUBLIC}  | base64 -d > public.key
+            echo ${USIGN_PRIVATE} | base64 -d > private.key
+            FINGER_PRINT=$(usign/build/usign -F -p public.key)
+            cp public.key artifacts/${FINGER_PRINT}
+            usign/build/usign -S -m ipks_built/Packages -s private.key
+            rm -rf private.key
+          fi
+          cp ipks_built/Packages* artifacts/
+        env:
+          USIGN_PUBLIC: ${{ secrets.USIGN_PUBLIC }}
+          USIGN_PRIVATE: ${{ secrets.USIGN_PRIVATE }}
+
+      - name: Update repository
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ inputs.tag }}-${{ matrix.target }}
+          allowUpdates: true
+          artifacts: artifacts/*
