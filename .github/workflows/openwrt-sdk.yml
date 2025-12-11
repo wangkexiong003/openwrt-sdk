@@ -230,24 +230,22 @@ jobs:
         working-directory: ${{ env.WORKING_DIR }}/openwrt
         run: |
           if [[ "${BUILD_PACKAGE}" == "" ]]; then
-            cp ${GITHUB_WORKSPACE}/config/image/feeds.conf feeds.conf
-            cp ${GITHUB_WORKSPACE}/config/image/${BUILD_TARGET} .config
-          else
-            cp ${GITHUB_WORKSPACE}/config/package/feeds.conf feeds.conf
-            cp ${GITHUB_WORKSPACE}/config/package/${BUILD_TARGET} .config
-          fi
-          cat feeds.conf.default >> feeds.conf
-
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
-
-          make defconfig
-
-          if [[ "${BUILD_PACKAGE}" == "" ]]; then
+            cp -v ${GITHUB_WORKSPACE}/config/image/feeds.conf feeds.conf
+            cat feeds.conf.default >> feeds.conf
+            ./scripts/feeds update -a
+            ./scripts/feeds install -a
+            cp -v ${GITHUB_WORKSPACE}/config/image/${BUILD_TARGET} .config
+            make defconfig
             chmod +x ${GITHUB_WORKSPACE}/scripts/diy_settings.sh
             ${GITHUB_WORKSPACE}/scripts/diy_settings.sh
             make -j$(nproc) || make -j1 || make -j1 V=s
           else
+            cp -v ${GITHUB_WORKSPACE}/config/package/feeds.conf feeds.conf
+            cat feeds.conf.default >> feeds.conf
+            ./scripts/feeds update -a
+            ./scripts/feeds install -a
+            cp -v ${GITHUB_WORKSPACE}/config/package/${BUILD_TARGET} .config
+            make defconfig
             chmod +x ${GITHUB_WORKSPACE}/scripts/patch.sh
             ${GITHUB_WORKSPACE}/scripts/patch.sh "${PWD}"
             make -j$(nproc) package/${BUILD_PACKAGE}/compile || make package/${BUILD_PACKAGE}/compile V=s

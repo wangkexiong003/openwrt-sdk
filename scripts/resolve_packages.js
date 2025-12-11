@@ -14,7 +14,7 @@ const feedNames =
     return parts[1];
   });
 
-const allPackages = [];
+const allPackages = [""];
 for (const feed of feedNames) {
   // This is after `scripts/feeds install -a`
   // And we are under openwrt directory surely
@@ -33,7 +33,6 @@ for (const feed of feedNames) {
   }
 }
 
-allPackages.push("");
 const allTargets = JSON.parse(process.env.ALL_TARGETS);
 
 // Write to GITHUB_OUTPUT
