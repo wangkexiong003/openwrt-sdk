@@ -166,6 +166,9 @@ jobs:
           if gh release view ${{ inputs.tag }}-${{ matrix.target }} -R ${GITHUB_REPOSITORY} >/dev/null 2>&1; then
             gh release delete ${{ inputs.tag }}-${{ matrix.target }} -R ${GITHUB_REPOSITORY} --cleanup-tag --yes
           fi
+          if gh api repos/${GITHUB_REPOSITORY}/git/refs/tags/image >/dev/null 2>&1; then
+            gh api -X DELETE repos/{GITHUB_REPOSITORY}/git/refs/tags/image
+          fi
         env:
           GH_TOKEN: ${{ github.token }}
 
